@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "provenance-enforcer.name" . }}
+  namespace: {{ include "provenance-enforcer.namespace" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "provenance-enforcer.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "provenance-enforcer.name" . }}
+    spec:
+      serviceAccountName: {{ include "provenance-enforcer.name" . }}
+      containers:
+        - name: operator
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["kopf", "run", "--all-namespaces", "-m", "provenance_enforcer.operator"]
+          env:
+            - name: VERIFY_TIMEOUT_SECONDS
+              value: {{ .Values.env.verifyTimeoutSeconds | quote }}
+            - name: VBBI_ATTESTATION_TYPE
+              value: {{ .Values.env.attestationType | quote }}
+            - name: VBBI_STATEMENT_TYPE
+              value: {{ .Values.env.statementType | quote }}
+            - name: VBBI_HMAC_MODE
+              value: {{ .Values.hmac.mode | quote }}
+{{- if eq .Values.hmac.mode "shared-secret" }}
+            - name: VBBI_HMAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "provenance-enforcer.hmacSecretName" . }}
+                  key: {{ include "provenance-enforcer.hmacSecretKeyField" . }}
+{{- end }}
+            - name: VAULT_ADDR
+              value: {{ .Values.vault.addr | quote }}
+            - name: VAULT_NAMESPACE
+              value: {{ .Values.vault.namespace | quote }}
+            - name: VAULT_AUTH_METHOD
+              value: {{ .Values.vault.authMethod | quote }}
+            - name: VAULT_TRANSIT_MOUNT
+              value: {{ .Values.vault.transitMount | quote }}
+            - name: VAULT_TRANSIT_KEY
+              value: {{ .Values.vault.transitKey | quote }}
+            - name: VAULT_TRANSIT_ALGORITHM
+              value: {{ .Values.vault.transitAlgorithm | quote }}
+            - name: VAULT_KUBERNETES_AUTH_MOUNT
+              value: {{ .Values.vault.kubernetesAuthMount | quote }}
+            - name: VAULT_KUBERNETES_ROLE
+              value: {{ .Values.vault.kubernetesRole | quote }}
+{{- if eq .Values.vault.authMethod "token" }}
+            - name: VAULT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.vault.tokenSecret.name | quote }}
+                  key: token
+                  optional: true
+{{- end }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}

@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: provenance-enforcer
+  namespace: devsecops-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: provenance-enforcer
+  template:
+    metadata:
+      labels:
+        app: provenance-enforcer
+    spec:
+      serviceAccountName: provenance-enforcer
+      containers:
+        - name: operator
+          image: ghcr.io/sabinghost19/provenance-enforcer:v0.1.0
+          imagePullPolicy: IfNotPresent
+          command:
+            [
+              "kopf",
+              "run",
+              "--all-namespaces",
+              "-m",
+              "provenance_enforcer.operator",
+            ]
+          env:
+            - name: VERIFY_TIMEOUT_SECONDS
+              value: "120"
+            - name: VBBI_ATTESTATION_TYPE
+              value: https://devsecops.licenta.ro/VBBI/v1
+            - name: VBBI_STATEMENT_TYPE
+              value: https://in-toto.io/Statement/v1
+            - name: VBBI_HMAC_MODE
+              value: shared-secret
+            - name: VBBI_HMAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: provenance-enforcer-hmac
+                  key: key
+                  optional: true
+            - name: VAULT_ADDR
+              value: ""
+            - name: VAULT_NAMESPACE
+              value: ""
+            - name: VAULT_AUTH_METHOD
+              value: token
+            - name: VAULT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: provenance-enforcer-vault
+                  key: token
+                  optional: true
+            - name: VAULT_TRANSIT_MOUNT
+              value: transit
+            - name: VAULT_TRANSIT_KEY
+              value: vbbi-hmac
+            - name: VAULT_TRANSIT_ALGORITHM
+              value: sha2-256
+            - name: VAULT_KUBERNETES_AUTH_MOUNT
+              value: kubernetes
+            - name: VAULT_KUBERNETES_ROLE
+              value: provenance-enforcer
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

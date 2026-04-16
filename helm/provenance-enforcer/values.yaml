@@ -1,0 +1,47 @@
+namespaceOverride: ""
+
+image:
+  repository: ghcr.io/sabinghost19/provenance-enforcer
+  tag: v0.1.0
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+hmac:
+  mode: shared-secret
+
+hmacSecret:
+  create: true
+  name: provenance-enforcer-hmac
+  keyField: key
+  value: 7f4c1b8d3e2a9f60711c8d4b5a6e2f1a9c8d7b6e5f4a3c2b1d0e9f8a7b6c5d4
+  annotations: {}
+  labels: {}
+
+vault:
+  enabled: false
+  addr: ""
+  namespace: ""
+  authMethod: token
+  tokenSecret:
+    create: false
+    name: provenance-enforcer-vault
+    token: ""
+  kubernetesAuthMount: kubernetes
+  kubernetesRole: provenance-enforcer
+  transitMount: transit
+  transitKey: vbbi-hmac
+  transitAlgorithm: sha2-256
+
+env:
+  verifyTimeoutSeconds: "120"
+  attestationType: https://devsecops.licenta.ro/VBBI/v1
+  statementType: https://in-toto.io/Statement/v1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

@@ -1,0 +1,11 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: provenance-enforcer-role
+rules:
+  - apiGroups: ["devsecops.licenta.ro"]
+    resources: ["zerotrustapplications", "zerotrustapplications/status"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: ["devsecops.licenta.ro"]
+    resources: ["supplychainattestations"]
+    verbs: ["get", "list", "watch"]

@@ -1,0 +1,208 @@
+name: provenance-enforcer-ci
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "requirements.txt"
+      - "Dockerfile"
+      - "helm/provenance-enforcer/**"
+      - "deploy/**"
+      - ".github/workflows/provenance-enforcer-ci.yaml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "requirements.txt"
+      - "Dockerfile"
+      - "helm/provenance-enforcer/**"
+      - "deploy/**"
+      - ".github/workflows/provenance-enforcer-ci.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: provenance-enforcer
+  CHART_PATH: helm/provenance-enforcer
+  CHART_NAME: provenance-enforcer
+
+jobs:
+  shared-secret-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run shared-secret verification tests
+        env:
+          PYTHONPATH: src
+          VBBI_HMAC_MODE: shared-secret
+          VBBI_HMAC_KEY: smoke-test-key
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+  helm-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Helm lint
+        run: helm lint ${{ env.CHART_PATH }}
+
+  helm-template:
+    runs-on: ubuntu-latest
+    needs: [shared-secret-tests, helm-lint]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Helm template validation
+        run: helm template provenance-enforcer ${{ env.CHART_PATH }} --namespace devsecops-system > /tmp/provenance-enforcer-rendered.yaml
+
+      - name: Check rendered output is not empty
+        run: test -s /tmp/provenance-enforcer-rendered.yaml
+
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: [shared-secret-tests, helm-lint, helm-template]
+    if: github.event_name != 'pull_request' && github.actor != 'github-actions[bot]'
+    outputs:
+      chart_image_tag: ${{ steps.charttag.outputs.value }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Normalize image repository
+        id: imagevars
+        shell: bash
+        run: |
+          echo "image_repo=${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve chart image tag
+        id: charttag
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.imagevars.outputs.image_repo }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha,prefix=sha-
+            type=raw,value=v0.1.0,enable={{is_default_branch}}
+
+      - name: Build and push operator image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Summary
+        run: |
+          echo "Pushed image tags:" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+
+  update-chart-values:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event_name != 'pull_request' && github.actor != 'github-actions[bot]'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Update Helm Chart values with new tag
+        env:
+          TAG: ${{ needs.build-and-push.outputs.chart_image_tag }}
+        run: |
+          sed -i "s/^  tag: .*/  tag: ${TAG}/" helm/provenance-enforcer/values.yaml
+
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          if git diff --quiet -- helm/provenance-enforcer/values.yaml; then
+            exit 0
+          fi
+          git add helm/provenance-enforcer/values.yaml
+          git commit -m "chore(helm): update image tags to ${TAG} [skip ci]" || echo "No changes to commit"
+          git pull --rebase origin main
+          git push
+
+  package-and-push-chart:
+    runs-on: ubuntu-latest
+    needs: [shared-secret-tests, helm-lint, helm-template, update-chart-values]
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sync latest main after values update
+        run: |
+          git fetch origin main
+          git checkout main
+          git pull --rebase origin main
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Normalize chart registry path
+        id: chartvars
+        shell: bash
+        run: |
+          echo "chart_repo=oci://${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/charts" >> "$GITHUB_OUTPUT"
+
+      - name: Package Helm chart
+        run: |
+          mkdir -p /tmp/chart-dist
+          helm package ${{ env.CHART_PATH }} --destination /tmp/chart-dist
+
+      - name: Login Helm registry (GHCR)
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+
+      - name: Push Helm chart to GHCR OCI
+        run: |
+          helm push /tmp/chart-dist/${{ env.CHART_NAME }}-*.tgz ${{ steps.chartvars.outputs.chart_repo }}
+
+      - name: Chart summary
+        run: |
+          echo "Pushed Helm chart:" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.chartvars.outputs.chart_repo }}/${{ env.CHART_NAME }}" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,4 @@
+1. Create or reuse a Kubernetes Secret for the HMAC verification key.
+2. Install with:
+   helm upgrade --install provenance-enforcer ./helm/provenance-enforcer -n devsecops-system --create-namespace
+3. Ensure matching SupplyChainAttestation resources have spec.provenance.requireVoucher=true.
