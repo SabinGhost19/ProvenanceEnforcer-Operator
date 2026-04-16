@@ -2,7 +2,7 @@ namespaceOverride: ""
 
 image:
   repository: ghcr.io/sabinghost19/provenance-enforcer
-  tag: sha-da06dc0
+  tag: sha-989d579
   pullPolicy: IfNotPresent
 
 replicaCount: 1
