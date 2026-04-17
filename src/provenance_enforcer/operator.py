@@ -19,7 +19,7 @@ def startup_fn(**_: Any) -> None:
 
 
 @kopf.on.create(GROUP, "v1", PLURAL)
-@kopf.on.update(GROUP, "v1", PLURAL)
+@kopf.on.field(GROUP, "v1", PLURAL, field="spec")
 def reconcile_provenance(spec: dict, name: str, namespace: str, body: dict, **_: Any) -> None:
     # keep the entrypoint thin and forward to the service layer.
     api_client = client.ApiClient()
@@ -28,7 +28,7 @@ def reconcile_provenance(spec: dict, name: str, namespace: str, body: dict, **_:
 
 
 @kopf.on.create(GROUP, "v1", SCA_PLURAL)
-@kopf.on.update(GROUP, "v1", SCA_PLURAL)
+@kopf.on.field(GROUP, "v1", SCA_PLURAL, field="spec")
 def reconcile_policy_change(body: dict, **_: Any) -> None:
     # reevaluate applications when the policy changes.
     api_client = client.ApiClient()
