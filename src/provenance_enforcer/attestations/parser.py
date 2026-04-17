@@ -4,7 +4,7 @@ import base64
 import json
 from typing import Any
 
-from ..config import VBBI_STATEMENT_TYPE
+from ..config import VBBI_STATEMENT_TYPE, VBBI_STATEMENT_TYPES
 from ..errors import ProvenanceVerificationError
 
 
@@ -49,9 +49,10 @@ def validate_vbbi_structure(voucher: dict[str, Any]) -> dict[str, Any]:
     hmac_chain = predicate.get("hmac_chain", {}) or {}
     merkle_tree = predicate.get("merkle_tree", {}) or {}
 
-    if statement_type != VBBI_STATEMENT_TYPE:
+    if statement_type not in VBBI_STATEMENT_TYPES:
+        accepted_types = ", ".join(f"'{item}'" for item in VBBI_STATEMENT_TYPES)
         raise ProvenanceVerificationError(
-            f"Voucher statement type '{statement_type}' does not match required '{VBBI_STATEMENT_TYPE}'"
+            f"Voucher statement type '{statement_type}' does not match accepted types [{accepted_types}]"
         )
     if not isinstance(subject, list) or not subject:
         raise ProvenanceVerificationError("Voucher must contain at least one subject entry")

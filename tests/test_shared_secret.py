@@ -5,6 +5,7 @@ import hmac
 import json
 import unittest
 
+from provenance_enforcer.config import VBBI_STATEMENT_TYPES
 from provenance_enforcer.crypto import compute_merkle_root, verify_hmac_chain, verify_merkle_root
 from provenance_enforcer.voucher import validate_vbbi_structure, validate_voucher_policy
 
@@ -90,6 +91,15 @@ class SharedSecretVerificationTests(unittest.TestCase):
         self.assertEqual(info["statementType"], "https://in-toto.io/Statement/v1")
         self.assertEqual(info["stepCount"], 4)
         self.assertEqual(info["subjectCount"], 1)
+
+    def test_legacy_statement_type_is_accepted(self) -> None:
+        legacy_voucher = json.loads(json.dumps(self.voucher))
+        legacy_voucher["statementType"] = "https://in-toto.io/Statement/v0.1"
+
+        info = validate_vbbi_structure(legacy_voucher)
+
+        self.assertIn(info["statementType"], VBBI_STATEMENT_TYPES)
+        self.assertEqual(info["statementType"], "https://in-toto.io/Statement/v0.1")
 
     def test_policy_validation_and_chain_verification_pass(self) -> None:
         policy = validate_voucher_policy(

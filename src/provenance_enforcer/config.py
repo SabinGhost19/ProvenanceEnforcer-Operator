@@ -1,5 +1,11 @@
 import os
 
+
+def _csv_env(name: str, default: str) -> tuple[str, ...]:
+	value = os.getenv(name, default)
+	items = tuple(part.strip() for part in value.split(",") if part.strip())
+	return items or tuple(part.strip() for part in default.split(",") if part.strip())
+
 GROUP = "devsecops.licenta.ro"
 VERSION = "v1"
 PLURAL = "zerotrustapplications"
@@ -9,7 +15,11 @@ DEFAULT_ISSUER = "https://token.actions.githubusercontent.com"
 COSIGN_BIN = os.getenv("COSIGN_BIN", "cosign")
 VERIFY_TIMEOUT_SECONDS = int(os.getenv("VERIFY_TIMEOUT_SECONDS", "120"))
 VBBI_ATTESTATION_TYPE = os.getenv("VBBI_ATTESTATION_TYPE", "https://devsecops.licenta.ro/VBBI/v1")
-VBBI_STATEMENT_TYPE = os.getenv("VBBI_STATEMENT_TYPE", "https://in-toto.io/Statement/v1")
+VBBI_STATEMENT_TYPES = _csv_env(
+	"VBBI_STATEMENT_TYPES",
+	"https://in-toto.io/Statement/v1,https://in-toto.io/Statement/v0.1",
+)
+VBBI_STATEMENT_TYPE = VBBI_STATEMENT_TYPES[0]
 VBBI_HMAC_MODE = os.getenv("VBBI_HMAC_MODE", "shared-secret")
 VBBI_HMAC_KEY = os.getenv("VBBI_HMAC_KEY", "dev-only-vbbi-key")
 VAULT_ADDR = os.getenv("VAULT_ADDR", "")

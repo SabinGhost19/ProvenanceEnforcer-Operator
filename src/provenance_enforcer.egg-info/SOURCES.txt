@@ -3,6 +3,7 @@ pyproject.toml
 src/provenance_enforcer/__init__.py
 src/provenance_enforcer/config.py
 src/provenance_enforcer/crypto.py
+src/provenance_enforcer/errors.py
 src/provenance_enforcer/operator.py
 src/provenance_enforcer/voucher.py
 src/provenance_enforcer.egg-info/PKG-INFO
@@ -10,3 +11,19 @@ src/provenance_enforcer.egg-info/SOURCES.txt
 src/provenance_enforcer.egg-info/dependency_links.txt
 src/provenance_enforcer.egg-info/requires.txt
 src/provenance_enforcer.egg-info/top_level.txt
+src/provenance_enforcer/attestations/__init__.py
+src/provenance_enforcer/attestations/fetch.py
+src/provenance_enforcer/attestations/parser.py
+src/provenance_enforcer/attestations/policy.py
+src/provenance_enforcer/k8s/__init__.py
+src/provenance_enforcer/k8s/policies.py
+src/provenance_enforcer/k8s/status.py
+src/provenance_enforcer/security/__init__.py
+src/provenance_enforcer/security/hash_utils.py
+src/provenance_enforcer/security/hmac_chain.py
+src/provenance_enforcer/security/merkle.py
+src/provenance_enforcer/security/vault.py
+src/provenance_enforcer/services/__init__.py
+src/provenance_enforcer/services/evaluation.py
+src/provenance_enforcer/services/reconcile.py
+tests/test_shared_secret.py
