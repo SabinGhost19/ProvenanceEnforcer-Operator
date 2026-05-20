@@ -13,8 +13,19 @@ from .services.reconcile import (
 
 
 @kopf.on.startup()
-def startup_fn(**_: Any) -> None:
-    # load the kubernetes client once on startup.
+def configure(settings: kopf.OperatorSettings, **_: Any) -> None:
+    # Isolate kopf bookkeeping from other operators (e.g. zta-operator) that
+    # reconcile the same ZeroTrustApplication CR. Without distinct prefixes,
+    # the default StatusProgressStorage + last-handled annotation collide,
+    # producing "Patching failed with inconsistencies" and reconcile loops.
+    settings.persistence.finalizer = "provenance-enforcer.devsecops.licenta.ro/finalizer"
+    settings.persistence.progress_storage = kopf.AnnotationsProgressStorage(
+        prefix="provenance-enforcer.devsecops.licenta.ro",
+    )
+    settings.persistence.diffbase_storage = kopf.AnnotationsDiffBaseStorage(
+        prefix="provenance-enforcer.devsecops.licenta.ro",
+        key="last-handled-configuration",
+    )
     load_kubernetes_config()
 
 
