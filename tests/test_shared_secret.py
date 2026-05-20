@@ -79,7 +79,14 @@ class SharedSecretVerificationTests(unittest.TestCase):
                     "steps": steps,
                     "final_voucher": previous,
                 },
+                # compute_merkle_root defaults to RFC 6962 (0x00 leaf /
+                # 0x01 node domain separation). The fixture must declare
+                # version: 2 + algorithm: rfc6962-sha256 so verify_merkle_root
+                # picks the same algorithm; otherwise it falls back to the
+                # legacy plain-sha256 path and the root would not match.
                 "merkle_tree": {
+                    "version": 2,
+                    "algorithm": "rfc6962-sha256",
                     "leaves": leaves,
                     "root_hash": compute_merkle_root([item["hash"] for item in leaves]),
                 },
