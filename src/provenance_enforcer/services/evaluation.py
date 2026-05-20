@@ -163,6 +163,12 @@ def evaluate_application(custom: client.CustomObjectsApi, item: dict[str, Any], 
         ),
     )
 
+    # Expose the full verified VBBI predicate to downstream consumers
+    # (in particular the CEL evaluator in zta-operator, which references
+    # voucher.build_context.slsa_level etc.). Aggregated fields are kept
+    # alongside for back-compat and quick `kubectl get -o jsonpath`.
+    voucher_predicate = (voucher.get("predicate", {}) or {})
+
     patch_status(
         custom,
         namespace,
@@ -181,6 +187,7 @@ def evaluate_application(custom: client.CustomObjectsApi, item: dict[str, Any], 
                 "subjectVerified": voucher_policy.get("subjectVerified", False),
                 "hmacChain": hmac_result,
                 "merkle": merkle_result,
+                "voucher": voucher_predicate,
                 "reason": "",
             },
         },
