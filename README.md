@@ -27,7 +27,7 @@ Variabile de mediu importante:
 - `COSIGN_BIN` - calea catre binarul cosign
 - `VERIFY_TIMEOUT_SECONDS` - timeout pentru verificarea atestarii
 - `VBBI_ATTESTATION_TYPE` - tipul de atestare VBBI
-- `VBBI_STATEMENT_TYPE` - tipul de statement in-toto acceptat
+- `VBBI_STATEMENT_TYPES` - listă CSV de tipuri de statement in-toto acceptate (default `https://in-toto.io/Statement/v1,https://in-toto.io/Statement/v0.1`; sunt acceptate **atât v1, cât și v0.1**)
 - `VBBI_HMAC_MODE` - `shared-secret` sau `vault-transit`
 - `VBBI_HMAC_KEY` - cheia folosita in modul `shared-secret`
 - `VAULT_ADDR`, `VAULT_TRANSIT_MOUNT`, `VAULT_TRANSIT_KEY`, `VAULT_TRANSIT_ALGORITHM` - configurare Vault Transit
@@ -89,10 +89,24 @@ Cum se citeste fluxul principal:
 
 Schema voucherului VBBI verificata:
 
-- `statement._type` trebuie sa fie `https://in-toto.io/Statement/v1`
+- `statement._type` trebuie sa fie unul din `VBBI_STATEMENT_TYPES` (implicit `https://in-toto.io/Statement/v1` **sau** `https://in-toto.io/Statement/v0.1`)
 - `predicate.build_context` trebuie sa contina `repository`, `workflow`, `run_id`, `event`, `issuer_oidc`, `slsa_level`, `image` si `commit_sha`
-- `predicate.hmac_chain` trebuie sa contina `provider`, `algorithm`, `h0_seed`, pasi ordonati, pozitii secventiale si `final_voucher`
+- `predicate.hmac_chain` trebuie sa contina `provider` (`shared-secret` sau `vault-transit`), `algorithm` (`sha256` sau `sha2-256`), `h0_seed`, pasi ordonati, pozitii secventiale si `final_voucher`
 - `predicate.merkle_tree` trebuie sa contina toate frunzele, in aceeasi ordine ca `hmac_chain.steps`, si `root_hash`
+
+Verificarea Merkle (negociere de versiune):
+
+- Voucherele cu `merkle_tree.version >= 2` **sau** `merkle_tree.algorithm == "rfc6962-sha256"` sunt verificate cu **RFC 6962** (domain-separated): frunza `SHA-256(0x00 || hash)`, nodul intern `SHA-256(0x01 || left || right)`. Aceasta previne second-preimage attacks.
+- Voucherele legacy (fara `version`, sau `version == 1`) folosesc hashing prin concatenare simpla SHA-256 (`SHA-256(hash)` pe frunze, `SHA-256(left || right)` pe noduri).
+- Frunzele se compara pozitional cu `hmac_chain.steps[*].hmac_result`; daca `leaves[*].step` e prezent, trebuie sa corespunda cu `step_name`.
+
+Campuri scrise in `status.provenance.merkle` la succes:
+
+- `verified` (bool), `computedRoot`, `expectedRoot`, `leafCount`
+- `merkleVersion` — `2` pentru RFC 6962, `1` pentru legacy
+- `merkleAlgorithm` — `"rfc6962-sha256"` sau `"plain-sha256"` (consumat de UI ca sa explice ce algoritm a fost folosit)
+
+> **Notă HMAC:** providerul din voucher (`hmac_chain.provider`) trebuie sa coincida cu `VBBI_HMAC_MODE` configurat pe operator; altfel verificarea esueaza cu `ProvenanceVerificationError` ("Voucher requires hmac provider ... but operator is configured for ...").
 
 Exemplu Helm pentru Vault Transit:
 
